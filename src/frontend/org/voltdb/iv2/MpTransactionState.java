@@ -76,6 +76,7 @@ public class MpTransactionState extends TransactionState
     Map<Integer, List<VoltTable>> m_remoteDepTables =
         new HashMap<Integer, List<VoltTable>>();
     private int m_drBufferChangedAgg = 0;
+    private int m_drPaddingBufferSize = 0;
     final List<Long> m_useHSIds = new ArrayList<Long>();
     final Map<Integer, Long> m_masterHSIds = Maps.newHashMap();
     long m_buddyHSId;
@@ -104,6 +105,11 @@ public class MpTransactionState extends TransactionState
         m_masterHSIds.putAll(partitionMasters);
         m_buddyHSId = buddyHSId;
         m_isRestart = isRestart;
+        // additional DR Invocation Buffer Space
+        // END_RECORD_SIZE = 13
+        // MAGIC_HEADER_SPACE_FOR_JAVA = 8
+        // MAGIC_DR_TRANSACTION_PADDING = 78
+        m_drPaddingBufferSize = (13 + 8 + 78) * m_masterHSIds.size();
     }
 
     public void updateMasters(List<Long> masters, Map<Integer, Long> partitionMasters)
@@ -116,6 +122,7 @@ public class MpTransactionState extends TransactionState
         m_useHSIds.addAll(masters);
         m_masterHSIds.clear();
         m_masterHSIds.putAll(partitionMasters);
+        m_drPaddingBufferSize = (13 + 8 + 78) * m_masterHSIds.size();
     }
 
     /**
@@ -417,7 +424,7 @@ public class MpTransactionState extends TransactionState
         if (tmLog.isTraceEnabled()) {
             tmLog.trace("Total DR buffer allocate for this txn: " + m_drBufferChangedAgg + " limit:" + DR_MAX_AGGREGATE_BUFFERSIZE);
         }
-        if (m_drBufferChangedAgg >= DR_MAX_AGGREGATE_BUFFERSIZE) {
+        if (m_drBufferChangedAgg + m_drPaddingBufferSize >= DR_MAX_AGGREGATE_BUFFERSIZE) {
             if (tmLog.isDebugEnabled()) {
                 tmLog.debug("Transaction txnid: " + TxnEgo.txnIdToString(txnId) + " exceeding DR Buffer Limit, need rollback.");
             }
